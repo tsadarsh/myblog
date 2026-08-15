@@ -1,16 +1,38 @@
 ---
-title: 'First post'
-description: 'Lorem ipsum dolor sit amet'
-pubDate: 'Jul 08 2022'
+title: 'How to implement velocity control on a model from Onshape to Mujoco'
+description: 'Learn how to implement velocity control for a robot joint in Mujoco using a model exported from Onshape.'
+pubDate: 'Aug 14 2026'
 heroImage: '../../assets/blog-placeholder-3.jpg'
 ---
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Vitae ultricies leo integer malesuada nunc vel risus commodo viverra. Adipiscing enim eu turpis egestas pretium. Euismod elementum nisi quis eleifend quam adipiscing. In hac habitasse platea dictumst vestibulum. Sagittis purus sit amet volutpat. Netus et malesuada fames ac turpis egestas. Eget magna fermentum iaculis eu non diam phasellus vestibulum lorem. Varius sit amet mattis vulputate enim. Habitasse platea dictumst quisque sagittis. Integer quis auctor elit sed vulputate mi. Dictumst quisque sagittis purus sit amet.
+Most tutorials explain how to control joint positions in Mujoco. This post covers implementing velocity control instead. I designed my robot model in Onshape and used the [Onshape to robot package](https://github.com/Rhoban/onshape-to-robot) to convert the CAD assembly to Mujoco XML.
 
-Morbi tristique senectus et netus. Id semper risus in hendrerit gravida rutrum quisque non tellus. Habitasse platea dictumst quisque sagittis purus sit amet. Tellus molestie nunc non blandit massa. Cursus vitae congue mauris rhoncus. Accumsan tortor posuere ac ut. Fringilla urna porttitor rhoncus dolor. Elit ullamcorper dignissim cras tincidunt lobortis. In cursus turpis massa tincidunt dui ut ornare lectus. Integer feugiat scelerisque varius morbi enim nunc. Bibendum neque egestas congue quisque egestas diam. Cras ornare arcu dui vivamus arcu felis bibendum. Dignissim suspendisse in est ante in nibh mauris. Sed tempus urna et pharetra pharetra massa massa ultricies mi.
+After creating the assembly in Onshape, name the fixed joints as "fix_*" and movable joints as "dof_*". Right-click the mates under "Mate features" to rename them. I named my wheel joint "dof_wheel_legs"—this is the joint I want to control with velocity.
 
-Mollis nunc sed id semper risus in. Convallis a cras semper auctor neque. Diam sit amet nisl suscipit. Lacus viverra vitae congue eu consequat ac felis donec. Egestas integer eget aliquet nibh praesent tristique magna sit amet. Eget magna fermentum iaculis eu non diam. In vitae turpis massa sed elementum. Tristique et egestas quis ipsum suspendisse ultrices. Eget lorem dolor sed viverra ipsum. Vel turpis nunc eget lorem dolor sed viverra. Posuere ac ut consequat semper viverra nam. Laoreet suspendisse interdum consectetur libero id faucibus. Diam phasellus vestibulum lorem sed risus ultricies tristique. Rhoncus dolor purus non enim praesent elementum facilisis. Ultrices tincidunt arcu non sodales neque. Tempus egestas sed sed risus pretium quam vulputate. Viverra suspendisse potenti nullam ac tortor vitae purus faucibus ornare. Fringilla urna porttitor rhoncus dolor purus non. Amet dictum sit amet justo donec enim.
+![onshape-screen-capture-showing-mate-features](../../assets/onshape-screen-capture-showing-mate-features.png)
 
-Mattis ullamcorper velit sed ullamcorper morbi tincidunt. Tortor posuere ac ut consequat semper viverra. Tellus mauris a diam maecenas sed enim ut sem viverra. Venenatis urna cursus eget nunc scelerisque viverra mauris in. Arcu ac tortor dignissim convallis aenean et tortor at. Curabitur gravida arcu ac tortor dignissim convallis aenean et tortor. Egestas tellus rutrum tellus pellentesque eu. Fusce ut placerat orci nulla pellentesque dignissim enim sit amet. Ut enim blandit volutpat maecenas volutpat blandit aliquam etiam. Id donec ultrices tincidunt arcu. Id cursus metus aliquam eleifend mi.
+Assign material properties to all parts for accurate physics simulation. Copy your assembly's URL.
 
-Tempus quam pellentesque nec nam aliquam sem. Risus at ultrices mi tempus imperdiet. Id porta nibh venenatis cras sed felis eget velit. Ipsum a arcu cursus vitae. Facilisis magna etiam tempor orci eu lobortis elementum. Tincidunt dui ut ornare lectus sit. Quisque non tellus orci ac. Blandit libero volutpat sed cras. Nec tincidunt praesent semper feugiat nibh sed pulvinar proin gravida. Egestas integer eget aliquet nibh praesent tristique magna.
+Install the [Onshape to robot package](https://github.com/Rhoban/onshape-to-robot) and create an API key. Follow [these](https://onshape-to-robot.readthedocs.io/en/latest/getting_started.html#setting-up-your-authentication) steps to set up authentication.
+
+Create a new directory with the following `config.json` file:
+```json
+{
+    "url": "<assembly_url>",
+    "output_format": "mujoco",
+    "joint_properties": {
+        "wheel_legs": {
+            "type": "velocity",
+            "range": false,
+	    "kv": 5
+        }
+    }
+}
+```
+
+The `joint_properties` above enable velocity control of the `wheel_legs` joint. Drag and drop the generated `scene.xml` file into Mujoco, then set the joint velocity using the "Control" sidebar.
+
+![mujoco-window-showing-control-sidebar](../../assets/mujoco-window-showing-control-sidebar.png)
+
+> [!CAUTION]
+> When converting a pickle file to Mujoco XML, joint properties are baked into the pickle file. If you edit `joint_properties` in config.json after retrieving the file, the changes won't be reflected in the XML. See [#206](https://github.com/Rhoban/onshape-to-robot/issues/206). Delete the pickle file and re-fetch the model for changes to take effect. 

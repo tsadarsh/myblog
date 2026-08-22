@@ -1,16 +1,34 @@
 ---
-title: 'Second post'
-description: 'Lorem ipsum dolor sit amet'
-pubDate: 'Jul 15 2022'
+title: 'Getting the simulation right'
+description: 'Notes from tuning a simple inverted pendulum simulation in Mujoco and fixing jitter caused by micro-collisions.'
+pubDate: 'Aug 21 2026'
 heroImage: '../../assets/blog-placeholder-4.jpg'
 ---
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Vitae ultricies leo integer malesuada nunc vel risus commodo viverra. Adipiscing enim eu turpis egestas pretium. Euismod elementum nisi quis eleifend quam adipiscing. In hac habitasse platea dictumst vestibulum. Sagittis purus sit amet volutpat. Netus et malesuada fames ac turpis egestas. Eget magna fermentum iaculis eu non diam phasellus vestibulum lorem. Varius sit amet mattis vulputate enim. Habitasse platea dictumst quisque sagittis. Integer quis auctor elit sed vulputate mi. Dictumst quisque sagittis purus sit amet.
+I wanted to understand and learn PID control, so I designed a simple inverted pendulum setup in Onshape and simulated the controller in Mujoco. In this post, I want to note down the main takeaways for getting the simulation right. After exporting the model from Onshape and loading it in Mujoco, I noticed that the pendulum was jittery and the simulation was sluggish.
 
-Morbi tristique senectus et netus. Id semper risus in hendrerit gravida rutrum quisque non tellus. Habitasse platea dictumst quisque sagittis purus sit amet. Tellus molestie nunc non blandit massa. Cursus vitae congue mauris rhoncus. Accumsan tortor posuere ac ut. Fringilla urna porttitor rhoncus dolor. Elit ullamcorper dignissim cras tincidunt lobortis. In cursus turpis massa tincidunt dui ut ornare lectus. Integer feugiat scelerisque varius morbi enim nunc. Bibendum neque egestas congue quisque egestas diam. Cras ornare arcu dui vivamus arcu felis bibendum. Dignissim suspendisse in est ante in nibh mauris. Sed tempus urna et pharetra pharetra massa massa ultricies mi.
+The first fix was to make the dimensions realistic. The model I designed in Onshape used millimeters, so when I created a pendulum of length 1, it was actually 1 mm rather than 1 meter. I scaled the model up, and the simulation immediately looked much more realistic. I also made sure the masses and materials were set correctly.
 
-Mollis nunc sed id semper risus in. Convallis a cras semper auctor neque. Diam sit amet nisl suscipit. Lacus viverra vitae congue eu consequat ac felis donec. Egestas integer eget aliquet nibh praesent tristique magna sit amet. Eget magna fermentum iaculis eu non diam. In vitae turpis massa sed elementum. Tristique et egestas quis ipsum suspendisse ultrices. Eget lorem dolor sed viverra ipsum. Vel turpis nunc eget lorem dolor sed viverra. Posuere ac ut consequat semper viverra nam. Laoreet suspendisse interdum consectetur libero id faucibus. Diam phasellus vestibulum lorem sed risus ultricies tristique. Rhoncus dolor purus non enim praesent elementum facilisis. Ultrices tincidunt arcu non sodales neque. Tempus egestas sed sed risus pretium quam vulputate. Viverra suspendisse potenti nullam ac tortor vitae purus faucibus ornare. Fringilla urna porttitor rhoncus dolor purus non. Amet dictum sit amet justo donec enim.
+But the simulation was still jittery.
+![jittery-sim](../../assets/jittery-sim.mov)
 
-Mattis ullamcorper velit sed ullamcorper morbi tincidunt. Tortor posuere ac ut consequat semper viverra. Tellus mauris a diam maecenas sed enim ut sem viverra. Venenatis urna cursus eget nunc scelerisque viverra mauris in. Arcu ac tortor dignissim convallis aenean et tortor at. Curabitur gravida arcu ac tortor dignissim convallis aenean et tortor. Egestas tellus rutrum tellus pellentesque eu. Fusce ut placerat orci nulla pellentesque dignissim enim sit amet. Ut enim blandit volutpat maecenas volutpat blandit aliquam etiam. Id donec ultrices tincidunt arcu. Id cursus metus aliquam eleifend mi.
+It took a few days to finally pinpoint the cause: micro-collisions. The hinge was constantly colliding with the pin holding the pendulum upright. To fix this, I set the `contype` and `conaffinity` parameters for each link correctly. I had seen these terms years earlier while working with Gazebo and URDFs, but I never took the time to understand what they were for.
 
-Tempus quam pellentesque nec nam aliquam sem. Risus at ultrices mi tempus imperdiet. Id porta nibh venenatis cras sed felis eget velit. Ipsum a arcu cursus vitae. Facilisis magna etiam tempor orci eu lobortis elementum. Tincidunt dui ut ornare lectus sit. Quisque non tellus orci ac. Blandit libero volutpat sed cras. Nec tincidunt praesent semper feugiat nibh sed pulvinar proin gravida. Egestas integer eget aliquet nibh praesent tristique magna.
+It turns out they are a neat way to decide which objects collide with each other. Both `contype` and `conaffinity` are 32-bit masks that tell the simulator whether one geom should collide with another. The simulator decides this by computing: `(contype_A & conaffinity_B) OR (conaffinity_A & contype_B)`. If the result of this bit operation is greater than 0, then geomA and geomB can collide. If it is equal to 0, they behave as if they are ghosts to each other.
+
+So in my simulation, I wanted the pendulum and the holder to not collide with each other. But both of them should be able to collide with the floor. So I set the following for the three collision bodies:
+
+| Body | Contype | Conaffinity |
+| ---  | ----   | ---- | 
+| Floor | 1 | 1 | 
+| Holder | 2 | 1 |
+| Pendulum | 4 | 1 |
+
+This way, the pendulum and holder do not collide with each other as:
+> (2 & 1) OR (4 & 1) = 0
+
+But the floor and holder collide (similarly, the floor and pendulum also collide):
+> (1 & 1) OR (2 & 1) > 0
+
+Here is the end result: no more jitter!
+![fixed-no-jitter](../../assets/fixed-no-jitter.mov)
